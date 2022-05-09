@@ -17,17 +17,8 @@ class FlowManager(simple_switch_13.SimpleSwitch13):
         Swtich functions
     '''
 
-    def flow_add(self,
-                 dpid,
-                 in_port,
-                 eth_dst,
-                 cookie=0,
-                 cookie_mask=None,
-                 table_id=0,
-                 idle_timeout=0,
-                 hard_timeout=None,
-                 priority=32768,
-                 buffer_id=None):
+    def flow_add(self, dpid,in_port, eth_dst, cookie=0, cookie_mask=None, table_id=0,
+                       idle_timeout=0, hard_timeout=None, priority=32768, buffer_id=None):
         datapath = self.datapaths[dpid]
         parser = datapath.ofproto_parser
         ofproto = datapath.ofproto
@@ -48,6 +39,9 @@ class FlowManager(simple_switch_13.SimpleSwitch13):
             ofproto.OFPG_ANY, ofproto.OFPFF_SEND_FLOW_REM, match, instructions)
         datapath.send_msg(flow_mod)
 
+    def get_flow_entry(self, dpid=None):
+        pass
+    
     def flow_del(self, dpid, table_id=None):
         datapath = self.datapaths[dpid]
 

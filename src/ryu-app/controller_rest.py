@@ -46,11 +46,12 @@ class NetworkStat(app_manager.RyuApp):
         wsgi.register(NetworkStatRest, {REST_APP: self})
 
         # External Apps:
-        self.network_monitor: NetworkMonitor = _kwargs['network_monitor']
-        self.simple_switch: SimpleSwitch13 = _kwargs['simple_switch']
+        self.port_statistic: PortStatistic = _kwargs['network_monitor']
+        self.flow_statistic: FlowStatistic = _kwargs['flow_statistic']
         self.delay_monitor: DelayMonitor = _kwargs['delay_monitor']
         self.flow_manager: FlowManager = _kwargs['flow_manager']
         self.topology_data: TopologyData = _kwargs['topology_data']
+        self.simple_switch: SimpleSwitch13 = _kwargs['simple_switch']
     
 class NetworkStatRest(ControllerBase):
 
@@ -177,7 +178,7 @@ class NetworkStatRest(ControllerBase):
     # network monitor
     @route(REST_APP, '/port_stat', methods=['GET'])
     def get_port_stat(self, req, **kwargs):
-        body = self.app.network_monitor.port_stat.to_json(orient='records')
+        body = self.app.port_statistic.port_stat.to_json(orient='records')
         return Response(content_type='application/json', body=body)
 
     @route(REST_APP, '/flow_stat', methods=['GET'])
@@ -192,7 +193,7 @@ class NetworkStatRest(ControllerBase):
 
     @route(REST_APP, '/port_desc', methods=['GET'])
     def get_port_desc(self, req, **kwargs):
-        body = self.app.network_monitor.port_desc.to_json(orient='records')
+        body = self.app.port_statistic.port_desc.to_json(orient='records')
         return Response(content_type='application/json', body=body, status=200)
     
     @route(REST_APP, '/bandwidth_stat', methods=['GET'])

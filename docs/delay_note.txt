@@ -1,0 +1,11 @@
+
+https://github.com/wildan2711/delay_monitor_sdn/blob/master/delay_monitor.py
+
+https://ryu.readthedocs.io/en/latest/library_packet.html
+
+http://csie.nqu.edu.tw/smallko/openflow/ryu/network_delay_detector.py
+
+http://csie.nqu.edu.tw/smallko/sdn/sdn.htm
+
+https://blog.katastros.com/a?ID=f08ab728-fe3f-40a4-8c50-df1c8163445f
+

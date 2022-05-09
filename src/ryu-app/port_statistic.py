@@ -7,7 +7,7 @@
 from ryu.base import app_manager
 from ryu.app import simple_switch_13
 from ryu.base.app_manager import lookup_service_brick
-from setting import MONITOR_INTERVAL, DISCOVER_INTERVAL, DELAY_MONITOR, TOPOLOGY_DATA
+from setting import GRAPH_UPDATE_INTERVAL, MONITOR_INTERVAL, TOPOLOGY_DATA
 
 # Ofp
 from ryu.controller import ofp_event
@@ -31,46 +31,48 @@ from operator import attrgetter
 from topology_data import TopologyData
 from delay_monitor import DelayMonitor
 
-class NetworkMonitor(simple_switch_13.SimpleSwitch13):
+class PortStatistic(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
-        super(NetworkMonitor, self).__init__(*args, **kwargs)
+        super(PortStatistic, self).__init__(*args, **kwargs)
         self.name = 'network_monitor'
         self.topology_api_app = self
 
         # Get data from another modules.
         self.topology_data: TopologyData = lookup_service_brick(TOPOLOGY_DATA)
-        self.delay_monitor: DelayMonitor = lookup_service_brick(DELAY_MONITOR)
         
         # Thread
         self.monitor_thread = hub.spawn(self._monitor_thread)
-        # self.measurement_thread = hub.spawn(self._measurement_thread)
+        self.save_freebandwidth_thread = hub.spawn(self._save_bw_graph)
 
         """ _port_stat_reply_handle """
         self.port_stats = {} # {dpid: {port_no:[(packet_count, byte_count, duration_sec, duration_nsec),... ]},... }
-        self.delta_port_stats = {} # {dpid: {port_no:[(delta_upload, delta_download, speed, period),... ]},... }
-        self.free_bandwidth = {}
+        self.delta_port_stats = {} # {dpid: {port_no:[(delta_upload, delta_download, duration_period),... ]},... }
+        
+        """ _create_bandwidth_graph """
+        self.free_bandwidth = {} # {dpid: {port_no: speed, ...}, ...}}
 
-        self.stats = {}
+        """ _port_desc_stats_reply_handler """
         self.port_features = {}
 
     # Thread:
     def _monitor_thread(self):
-        while True:
-            self.stats['flow'] = {}
-            self.stats['port'] = {}
-            
+        while True:            
             for dp in self.topology_data.datapaths.values():
                 self.port_features.setdefault(dp.id, {})
                 self._request_stats(dp)
-            print('delta_flow: ') 
-            print(self.delta_flow_stats)
             hub.sleep(MONITOR_INTERVAL)
 
-    def _measurement_thread(self):
+    def _save_bw_graph(self):
+        """
+            Save bandwidth data into networkx graph object.
+        """
         while True:
-            self._cal_packet_loss()
+            self.graph = self._create_bandwidth_graph(self.free_bandwidth)
+            self.logger.debug("save_freebandwidth")
+            hub.sleep(GRAPH_UPDATE_INTERVAL)
 
+    # Stat request:
     def _request_stats(self, datapath):
         self.logger.debug('send stats request: %016x', datapath.id)
         ofproto = datapath.ofproto
@@ -82,7 +84,7 @@ class NetworkMonitor(simple_switch_13.SimpleSwitch13):
         req = parser.OFPPortDescStatsRequest(datapath, 0)
         datapath.send_msg(req)
 
-    #
+    # 
     def _save_stats(self, _dict, key, value, history_length=2):
         if key not in _dict:
             _dict[key] = []
@@ -95,6 +97,13 @@ class NetworkMonitor(simple_switch_13.SimpleSwitch13):
         if period: return (now - pre) / (period)
         else: return
 
+    def _time_coverter(self, sec, nsec):
+        return sec + nsec / (10 ** 9)
+
+    def _get_period(self, n_sec, n_nsec, p_sec, p_nsec):
+        return self._time_coverter(n_sec, n_nsec) - self._time_coverter(p_sec, p_nsec)
+
+    # Bandwidth graph:
     def _save_freebandwidth(self, dpid, port_no, speed):
         # Calculate free bandwidth of port and save it.
         port_state = self.port_features.get(dpid).get(port_no)
@@ -106,21 +115,35 @@ class NetworkMonitor(simple_switch_13.SimpleSwitch13):
         else:
             self.logger.info("Fail in getting port state")
             
-    def _create_bandwidth_graph(self):
-        pass
-    
-    def _save_bandwidth_graph(self):
-        pass
+    def _create_bandwidth_graph(self, bw_dict):
+        """
+            Save bandwidth data into networkx graph object.
+        """
+        try:
+            graph = self.topology_data.graph
+            link_to_port = self.topology_data.link_to_port
+            for link in link_to_port:
+                (src_dpid, dst_dpid) = link
+                (src_port, dst_port) = link_to_port[link]
+                if src_dpid in bw_dict and dst_dpid in bw_dict:
+                    bw_src = bw_dict[src_dpid][src_port]
+                    bw_dst = bw_dict[dst_dpid][dst_port]
+                    bandwidth = min(bw_src, bw_dst)
+                    # add key:value of bandwidth into graph.
+                    print(bw_src, bw_dst)
+                    graph[src_dpid][dst_dpid]['bandwidth'] = bandwidth
+                else:
+                    graph[src_dpid][dst_dpid]['bandwidth'] = 0
+            return graph
+        except:
+            self.logger.info("Create bw graph exception")
+            if self.topology_data is None:
+                self.topology_data = lookup_service_brick(TOPOLOGY_DATA)
+            return self.topology_data.graph
 
     def _get_free_bw(self, capacity, speed):
         # BW:Mbit/s
         return max(capacity / 10**3 - speed * 8, 0)
-
-    def _time_coverter(self, sec, nsec):
-        return sec + nsec / (10 ** 9)
-
-    def _get_period(self, n_sec, n_nsec, p_sec, p_nsec):
-        return self._time_coverter(n_sec, n_nsec) - self._time_coverter(p_sec, p_nsec)
 
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
@@ -135,7 +158,7 @@ class NetworkMonitor(simple_switch_13.SimpleSwitch13):
         """
         body = ev.msg.body
         dpid = ev.msg.datapath.id
-        self.stats['port'][dpid] = body
+    
         self.free_bandwidth.setdefault(dpid, {})
 
         for stat in sorted(body, key=attrgetter('port_no')):
@@ -151,10 +174,8 @@ class NetworkMonitor(simple_switch_13.SimpleSwitch13):
 
                 port_stats = self.port_stats[key]
 
-                # if len(port_stats) = 1:
-                    # prev_stat = 0
-                    # period = MONITOR_INTERVAL
-                    # continue
+                if len(port_stats) == 1:
+                    self._save_stats(self.delta_port_stats, key, (stat.tx_bytes, stat.rx_bytes, stat.rx_errors, MONITOR_INTERVAL), 5)
                 
                 if len(port_stats) > 1:
                     curr_stat = port_stats[-1][0] + port_stats[-1][1]
@@ -165,15 +186,16 @@ class NetworkMonitor(simple_switch_13.SimpleSwitch13):
 
                     speed = self._cal_delta_stat(curr_stat, prev_stat, period)
 
-                    delta_upload = self._cal_delta_stat(port_stats[-1][0], port_stats[-2][0], period)
-                    delta_download = self._cal_delta_stat(port_stats[-1][1], port_stats[-2][1], period)
-                    self._save_stats(self.delta_port_stats, key, (delta_upload, delta_download, speed, period), 5)
+                    delta_upload = self._cal_delta_stat(port_stats[-1][0], port_stats[-2][0], 1)
+                    delta_download = self._cal_delta_stat(port_stats[-1][1], port_stats[-2][1], 1)
+                    delta_error = self._cal_delta_stat(port_stats[-1][2], port_stats[-2][2], 1)
+                    self._save_stats(self.delta_port_stats, key, (delta_upload, delta_download, delta_error, period), 5) # delta port stats
 
                     # save free bandwidth (link capacity, can be used for load balancing, calculate link utilization) - Not work in mininet (reason: no link bandwidth)
                     self._save_freebandwidth(dpid, port_no, speed)
 
     @set_ev_cls(ofp_event.EventOFPPortDescStatsReply, MAIN_DISPATCHER)
-    def port_desc_stats_reply_handler(self, ev):
+    def _port_desc_stats_reply_handler(self, ev):
         """
             Save port description info.
         """
@@ -248,7 +270,33 @@ class NetworkMonitor(simple_switch_13.SimpleSwitch13):
         pass
     
     def get_port_stats(self):
+        # stats = {}
+        # for dpid in self.port_stats.keys():
+        #     for stat in self.port_stats[port_stat]:
+        #         [{
+        #             'dpid': dpid,
+        #             'stats': [
+        #                 {
+        #                     'port_no': ,
+        #                     'rx_bytes': ,
+        #                     'tx_bytes': ,
+        #                     'rx_errors': ,
+        #                     'duration_sec': ,
+        #                     'durration_nsec': ,
+        #                 },
+        #                 ...
+        #             ]   
+        #         },]
+            
+        # return stats
         pass
     
-# ryu-manager --observe-link --ofp-tcp-listen-port=6633 network_monitor.py
+    def get_port_speed_and_bandwidth(self):
+        pass
+    
+    def get_free_bandwidth(self):
+        pass
+
+# sudo mn --topo linear,4 --controller=remote,ip=localhost,port=6633 --switch ovsk --link tc,bw=0.1,delay=0ms,loss=10
+# ryu-manager --observe-link --ofp-tcp-listen-port=6633 topology_data.py port_statistic.py
 # http://www.muzixing.com/tag/ryu-bandwidth.html
