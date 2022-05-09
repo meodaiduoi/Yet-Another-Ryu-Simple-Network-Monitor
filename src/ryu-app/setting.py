@@ -1,0 +1,15 @@
+REST_APP = 'NetworkStat'
+
+DELAY_MONITOR = 'delay_monitor'
+TOPOLOGY_DATA = 'topology_data'
+FLOW_MANAGER = 'flow_manager'
+NETWORK_MONITOR = 'network_monitor'
+
+
+SHOW_DEBUG = True
+
+MONITOR_INTERVAL = 3
+DISCOVER_INTERVAL = 10
+PROBE_PACKETLOSS_INTERVAL = 15
+
+DELAY_DETECTING_INTERVAL = 3

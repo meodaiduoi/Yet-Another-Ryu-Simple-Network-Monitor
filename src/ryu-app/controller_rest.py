@@ -1,0 +1,216 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+
+# Base App:
+from setting import FLOW_MANAGER, REST_APP
+from ryu.base import app_manager
+
+# WSGI / REST API
+import json
+from ryu.app.wsgi import WSGIApplication, ControllerBase, Response, route
+from ryu.lib import dpid as dpid_lib
+
+# Base Application:
+from ryu.controller.controller import Datapath
+
+# WSGI / REST API
+import json
+from ryu.app.wsgi import WSGIApplication, ControllerBase, Response, route
+
+# External Core
+from simple_swtich_13 import SimpleSwitch13
+from delay_monitor import DelayMonitor
+from flow_statistic import FlowStatistic
+from port_statistic import PortStatistic
+from flow_manager import FlowManager
+from topology_data import TopologyData
+
+class NetworkStat(app_manager.RyuApp):
+    # Version - Context
+    _CONTEXTS = {
+            'wsgi': WSGIApplication,
+            'port_statistic': PortStatistic,
+            'flow_statistic': FlowStatistic,
+            'delay_monitor': DelayMonitor,
+            'simple_switch': SimpleSwitch13,
+            'topology_data': TopologyData,
+            'flow_manager': FlowManager,
+        }
+
+    def __init__(self, *_args, **_kwargs):
+        super(NetworkStat, self).__init__(*_args, **_kwargs)
+        self.name = 'controller_rest'
+        
+        # Register the WSGI application
+        wsgi: WSGIApplication = _kwargs['wsgi']
+        wsgi.register(NetworkStatRest, {REST_APP: self})
+
+        # External Apps:
+        self.network_monitor: NetworkMonitor = _kwargs['network_monitor']
+        self.simple_switch: SimpleSwitch13 = _kwargs['simple_switch']
+        self.delay_monitor: DelayMonitor = _kwargs['delay_monitor']
+        self.flow_manager: FlowManager = _kwargs['flow_manager']
+        self.topology_data: TopologyData = _kwargs['topology_data']
+    
+class NetworkStatRest(ControllerBase):
+
+    def __init__(self, req, link, data, **config):
+        super(NetworkStatRest, self).__init__(req, link, data, **config)
+        self.app: NetworkStat = data[REST_APP]
+
+    @route(REST_APP, '/', methods=['GET'])
+    def hello(self, req, **_kwargs):
+        body = json.dumps([{'hello': 'world'}])
+        return (Response(content_type='application/json', body=body, status=200))
+    
+    # @route(REST_APP, '/hello/{test}', methods=['GET'])
+    # def hello_test(self, req, **_kwargs):
+    #     test = _kwargs['test']
+    #     body = json.dumps([{'hello': test}])
+    #     print(type(test))
+    #     return (Response(content_type='application/json', body=body))
+    
+    # @route(REST_APP, '/json_test', methods=['PUT'])
+    # def json_test(self, req, **_kwargs):
+    #     try:
+    #         content = req.json if req.body else {}
+    #     except ValueError:
+    #         raise Response(status=400)
+    #     # return (Response(content_type='application/json', body=json.dumps(content), status=200))
+    #     print(type(content))      
+    #     return (Response(content_type='application', body=json.dumps(content), status=200))
+
+    # flow get
+    @route(REST_APP, '/flow_get/{dpid}', methods=['GET'])
+    def flow_get(self, req, **_kwargs):
+        try:
+            dpid = int(_kwargs['dpid'])
+        except ValueError:
+            body = json.dump([{'status': 'value error'}])
+            return Response(content_type='application/json', body=body, status=400)
+        else:
+            pass
+    
+    @route(REST_APP, '/flow_get_all', methods=['GET'])
+    def flow_get_all(self, req, **_kwargs):
+        body = json.dumps([{'status': 'ok'}])
+        return (Response(content_type='application/json', body=body, status=200))
+    
+    @route(REST_APP, '/add_flow', methods=['PUT'])
+    def add_flow(self, req, **_kwargs):
+        try:
+            content = req.json if req.body else {}
+
+            dpid = int(content['dpid'])
+            cookie = int(content['cookie'])
+            cookie_mask = int(content['cookie_mask'])
+            table_id = int(content['table_id'])
+            idle_timeout = int(content['idle_timeout'])
+            hard_timeout = int(content['hard_timeout'])
+            priority = int(content['priority'])
+            flags = int(content['flags'])
+            match = content['match']
+            actions = content['actions']
+        
+        except ValueError:
+            body = json.dumps([{'status': 'value error'}])
+            return Response(content_type='application/json', body=body, status=400)
+        
+        else:
+            # Not Yet fully implement - Do not use
+            # self.app.flow_manager.flow_add(dpid, cookie=cookie, cookie_mask=cookie_mask,
+            #                                table_id=table_id, idle_timeout=idle_timeout,
+            #                                hard_timeout=hard_timeout, priority=priority,
+            #                                in_port=in_port, eth_dst=eth_dst)
+            body = json.dumps([{'status': 'ok'}])
+            return Response(content_type='application/json', body=body, status=200)
+            
+            
+    @route(REST_APP, '/del_flow/{dpid}', methods=['PUT'])
+    def del_flow(self, req, **_kwargs):
+        dpid = _kwargs['dpid']
+        try:
+            dpid = int(dpid)
+        except ValueError:
+            body = json.dumps([{'status': 'value error'}])
+            return Response(content_type='application/json', body=body, status=400)
+        else:
+            self.app.flow_manager.flow_del(dpid)
+            return Response(content_type='application/json', body=json_dump({'status': 'ok'}), status=200)
+
+    @route(REST_APP, '/clear_all_flow', methods=['GET'])
+    def clean_flow(self, req, **_kwargs):
+        self.app.flow_clear_all()
+        body = json.dumps([{'status': 'ok'}])
+        return (Response(content_type='application/json', body=body, status=200))
+
+    # network info
+    @route(REST_APP, '/topology_data', methods=['GET'])
+    def topology_data(self, req, **_kwargs):
+        hosts, switches, links = self.app.topology_data.get_topology_data()
+        topo = {
+            'host': hosts,
+            'switch': switches,
+            'link': links
+        }
+        body = json.dumps(topo)
+        return Response(content_type='application/json', body=body, status=200)
+
+    @route(REST_APP, '/hosts', methods=['GET'])
+    def get_hosts(self, req):
+        hosts, _, _ = self.app.topology_data.get_topology_data()
+        body = json.dumps({'hosts': hosts})
+        return Response(content_type='application/json', body=body, status=200)
+        
+    @route(REST_APP, '/links', methods=['GET'])
+    def get_links(self, req):
+        _, _, links = self.app.topology_data.get_topology_data()
+        body = json.dumps({'link': links})
+        return Response(content_type='application/json', body=body, status=200)
+
+    @route(REST_APP, '/switches', methods=['GET'])
+    def get_switches(self, req):
+        _, switches, _ = self.app.topology_data.get_topology_data()
+        body = json.dumps({'switch': switches})
+        return Response(content_type='application/json', body=body, status=200)
+
+    # network monitor
+    @route(REST_APP, '/port_stat', methods=['GET'])
+    def get_port_stat(self, req, **kwargs):
+        body = self.app.network_monitor.port_stat.to_json(orient='records')
+        return Response(content_type='application/json', body=body)
+
+    @route(REST_APP, '/flow_stat', methods=['GET'])
+    def get_flow_stat(self, req, **kwargs):
+
+        return Response(content_type='application/json', body=body)
+
+    @route(REST_APP, '/delta_flow_stat', methods=['GET'])
+    def get_delta_flow_stat(self, req, **kwargs):
+
+        return Response(content_type='application/json', body=body)
+
+    @route(REST_APP, '/port_desc', methods=['GET'])
+    def get_port_desc(self, req, **kwargs):
+        body = self.app.network_monitor.port_desc.to_json(orient='records')
+        return Response(content_type='application/json', body=body, status=200)
+    
+    @route(REST_APP, '/bandwidth_stat', methods=['GET'])
+    def get_bandwidth_stat(self, req, **kwargs):
+        # body = json.dumps(self.app.bandwidth_stat)
+        # return Response(content_type='application/json', body=body)
+        return
+    
+
+    @route(REST_APP, '/link_quality', methods=['GET'])
+    def get_link_quality(self, req, **kwargs):
+        """_summary_
+        Get link quality data: packet loss, bandwidth, delay
+        Returns:
+            _type_: json string response
+        """
+        link_quality = self.app.topology_data.get_link_quality
+        body = json.dumps(link_quality)
+        return Response(content_type='application/json', body=body, status=200)
+        
+# ryu-manager --observe-link --ofp-tcp-listen-port=6633 --wsapi-port=8080 NetworkStatRest.py
