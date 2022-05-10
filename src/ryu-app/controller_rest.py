@@ -137,7 +137,7 @@ class NetworkStatRest(ControllerBase):
             return Response(content_type='application/json', body=body, status=400)
         else:
             self.app.flow_manager.flow_del(dpid)
-            return Response(content_type='application/json', body=json_dump({'status': 'ok'}), status=200)
+            return Response(content_type='application/json', body=json.dumps({'status': 'ok'}), status=200)
 
     @route(REST_APP, '/clear_all_flow', methods=['GET'])
     def clean_flow(self, req, **_kwargs):
@@ -178,31 +178,29 @@ class NetworkStatRest(ControllerBase):
     # network monitor
     @route(REST_APP, '/port_stat', methods=['GET'])
     def get_port_stat(self, req, **kwargs):
-        body = self.app.port_statistic.port_stat.to_json(orient='records')
+        body = json.dumps(self.app.port_statistic.get_port_stats())
         return Response(content_type='application/json', body=body)
-
-    @route(REST_APP, '/flow_stat', methods=['GET'])
-    def get_flow_stat(self, req, **kwargs):
-
-        return Response(content_type='application/json', body=body)
-
-    @route(REST_APP, '/delta_flow_stat', methods=['GET'])
-    def get_delta_flow_stat(self, req, **kwargs):
-
-        return Response(content_type='application/json', body=body)
-
-    @route(REST_APP, '/port_desc', methods=['GET'])
-    def get_port_desc(self, req, **kwargs):
-        body = self.app.port_statistic.port_desc.to_json(orient='records')
-        return Response(content_type='application/json', body=body, status=200)
     
-    @route(REST_APP, '/bandwidth_stat', methods=['GET'])
-    def get_bandwidth_stat(self, req, **kwargs):
-        # body = json.dumps(self.app.bandwidth_stat)
-        # return Response(content_type='application/json', body=body)
-        return
-    
+    @route(REST_APP, '/delta_port_stat', methods=['GET'])
+    def get_delta_port_stat(self, req, **kwargs):
+        body = json.dumps(self.app.port_statistic.get_delta_port_stats())
+        return Response(content_type='application/json', body=body)
 
+    # @route(REST_APP, '/flow_stat', methods=['GET'])
+    # def get_flow_stat(self, req, **kwargs):
+    #     body = json.dumps(self.)
+    #     return Response(content_type='application/json', body=body)
+
+    # @route(REST_APP, '/delta_flow_stat', methods=['GET'])
+    # def get_delta_flow_stat(self, req, **kwargs):
+
+    #     return Response(content_type='application/json', body=body)
+
+    # @route(REST_APP, '/port_desc', methods=['GET'])
+    # def get_port_desc(self, req, **kwargs):
+    #     body = self.app.port_statistic.port_desc.to_json(orient='records')
+    #     return Response(content_type='application/json', body=body, status=200)
+    
     @route(REST_APP, '/link_quality', methods=['GET'])
     def get_link_quality(self, req, **kwargs):
         """_summary_
@@ -210,7 +208,7 @@ class NetworkStatRest(ControllerBase):
         Returns:
             _type_: json string response
         """
-        link_quality = self.app.topology_data.get_link_quality
+        link_quality = self.app.topology_data.get_link_quality()
         body = json.dumps(link_quality)
         return Response(content_type='application/json', body=body, status=200)
         

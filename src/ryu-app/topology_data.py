@@ -171,8 +171,29 @@ class TopologyData(app_manager.RyuApp):
         Returns:
             A dict of link graph data structure
         """
-        link_quality = {}
+        link_quality = []
         for src, dst, value in self.graph.edges(data=True):
             if src != dst:
-                link_quality[(src, dst)] = value
+                
+                # I wish i understood Lambda function
+                if 'packet_loss' in value: packet_loss = value['packet_loss']
+                else: packet_loss = None 
+                
+                if 'delay' in value: delay = value['delay']
+                else: delay = None
+                
+                if 'link_usage' in value: link_usage = value['link_usage']
+                else: link_usage = None
+                
+                if 'free_bandwith' in value: free_bandwith = value['free_bandwith']
+                else: free_bandwith = None
+                
+                link_quality.append({
+                    'src.dpid': src,
+                    'dst.dpid': dst,
+                    'delay': delay * 1000, # ms
+                    'packet_loss': packet_loss,
+                    'link_usage': link_usage,
+                    'free_bandwidth': free_bandwith
+                })
         return link_quality

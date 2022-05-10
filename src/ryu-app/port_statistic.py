@@ -1,8 +1,3 @@
-'''
-    In-development.
-    This is a Ryu app to monitor network traffic.
-'''
-
 # Base
 from ryu.base import app_manager
 from ryu.base.app_manager import lookup_service_brick
@@ -15,12 +10,6 @@ from ryu.controller.handler import set_ev_cls, MAIN_DISPATCHER
 # Thread
 from ryu.lib import hub
 from ryu.ofproto import ofproto_v1_3
-
-# Topology Method
-from ryu.topology.switches import Switch, Link, Host, Port
-
-# Type hint:
-from ryu.controller.controller import Datapath
 
 # Extra
 from operator import attrgetter
@@ -43,8 +32,8 @@ class PortStatistic(app_manager.RyuApp):
         self.save_freebandwidth_thread = hub.spawn(self._save_bw_graph)
 
         """ _port_stat_reply_handle """
-        self.port_stats = {} # {dpid: {port_no:[(packet_count, byte_count, duration_sec, duration_nsec),... ]},... }
-        self.delta_port_stats = {} # {dpid: {port_no:[(delta_upload, delta_download, duration_period),... ]},... }
+        self.port_stats = {} # {(dpid, port_no):[(tx_bytes, rx_bytes, rx_errors, duration_sec, duration_nsec),... ]},... }
+        self.delta_port_stats = {} # {(dpid, port_no):[(delta_upload, delta_download, delta_error, period),... ]},... }
         
         """ _create_bandwidth_graph """
         self.free_bandwidth = {} # {dpid: {port_no: (free_bandwidth, usage), ...}, ...}} (Mbit/s)
@@ -59,8 +48,8 @@ class PortStatistic(app_manager.RyuApp):
                 for dp in self.topology_data.datapaths.values():
                     self.port_features.setdefault(dp.id, {})
                     self._request_stats(dp)
-                    # print(self.free_bandwidth)
-                    self.show_stat()
+                    print('port stat')
+                    print(self.delta_port_stats)
                 hub.sleep(MONITOR_INTERVAL)
             except:
                 if self.topology_data is None:
@@ -171,12 +160,13 @@ class PortStatistic(app_manager.RyuApp):
     
         self.free_bandwidth.setdefault(dpid, {})
 
+        # !FIXME: add rx_packets
         for stat in sorted(body, key=attrgetter('port_no')):
             port_no = stat.port_no
             if port_no != ofproto_v1_3.OFPP_LOCAL:
 
                 key = (dpid, port_no)
-                value = (stat.tx_bytes, stat.rx_bytes, stat.rx_errors,
+                value = (stat.rx_packets, stat.tx_bytes, stat.rx_bytes, stat.rx_errors,
                          stat.duration_sec, stat.duration_nsec)
 
                 # Monitoring current port.
@@ -275,37 +265,36 @@ class PortStatistic(app_manager.RyuApp):
         Accessor:
         return info as dict
     """
-    def get_delta_port_stats(self):
-        
-        pass
-    
     def get_port_stats(self):
-        # stats = {}
-        # for dpid in self.port_stats.keys():
-        #     for stat in self.port_stats[port_stat]:
-        #         [{
-        #             'dpid': dpid,
-        #             'stats': [
-        #                 {
-        #                     'port_no': ,
-        #                     'rx_bytes': ,
-        #                     'tx_bytes': ,
-        #                     'rx_errors': ,
-        #                     'duration_sec': ,
-        #                     'durration_nsec': ,
-        #                 },
-        #                 ...
-        #             ]   
-        #         },]
-            
-        # return stats
-        pass
-    
-    def get_port_speed_and_bandwidth(self):
-        pass
-    
-    def get_free_bandwidth(self):
-        pass
+        stats = []
+        port_stats = self.port_stats
+        for dpid, port_no in port_stats:
+            packet_count, byte_count, rx_error, duration_sec, duration_nsec = port_stats[(dpid, port_no)][-1]
+            stats.append({
+                'dpid': dpid,
+                'port_no': port_no,
+                'packet_count': packet_count,
+                'byte_count': byte_count,
+                'rx_error': rx_error,
+                'durration_sec': duration_sec,
+                'duration_nsec': duration_nsec
+            })
+        return stats    
+
+    def get_delta_port_stats(self):
+        stats = []
+        delta_port_stats = self.delta_port_stats
+        for dpid, port_no in delta_port_stats:
+            delta_upload, delta_download, delta_rx_error, duration_period = delta_port_stats[(dpid, port_no)][-1]
+            stats.append({
+                'dpid': dpid,
+                'port_no': port_no,
+                'tx_byte': delta_upload,
+                'rx_byte': delta_download,
+                'rx_error': delta_rx_error,
+                'period': duration_period # second
+            })
+        return stats
     
     def show_stat(self):
         if True and self.topology_data is not None:

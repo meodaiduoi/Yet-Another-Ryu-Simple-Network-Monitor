@@ -48,7 +48,6 @@ class FlowStatistic(app_manager.RyuApp):
         while True:
             hub.sleep(5)
             self._get_link_loss()
-            print(self.topology_data.graph.edges(data=True))
     
     def _request_stats(self, datapath):
         self.logger.debug('send stats request: %016x', datapath.id)
@@ -89,9 +88,7 @@ class FlowStatistic(app_manager.RyuApp):
         except:
             if self.topology_data is None:
                 self.topology_data = lookup_service_brick('topology_data')
-                print('update topology data')
             return
-        
         
     def _link_loss_match(self, src_dpid, dst_dpid):
         src_port, dst_port = self.topology_data.get_link_to_port(src_dpid, dst_dpid)
