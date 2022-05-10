@@ -5,14 +5,12 @@
 
 # Base
 from ryu.base import app_manager
-from ryu.app import simple_switch_13
 from ryu.base.app_manager import lookup_service_brick
-from setting import GRAPH_UPDATE_INTERVAL, MONITOR_INTERVAL, TOPOLOGY_DATA
+from setting import GRAPH_UPDATE_INTERVAL, MONITOR_INTERVAL, PORT_STATISTIC, TOPOLOGY_DATA
 
 # Ofp
 from ryu.controller import ofp_event
-from ryu.controller.handler import set_ev_cls, MAIN_DISPATCHER, DEAD_DISPATCHER
-from ryu.ofproto.ofproto_parser import MsgBase
+from ryu.controller.handler import set_ev_cls, MAIN_DISPATCHER
 
 # Thread
 from ryu.lib import hub
@@ -29,13 +27,12 @@ from operator import attrgetter
 
 # External:
 from topology_data import TopologyData
-from delay_monitor import DelayMonitor
 
 class PortStatistic(app_manager.RyuApp):
 
     def __init__(self, *args, **kwargs):
         super(PortStatistic, self).__init__(*args, **kwargs)
-        self.name = 'network_monitor'
+        self.name = PORT_STATISTIC
         self.topology_api_app = self
 
         # Get data from another modules.
@@ -50,7 +47,7 @@ class PortStatistic(app_manager.RyuApp):
         self.delta_port_stats = {} # {dpid: {port_no:[(delta_upload, delta_download, duration_period),... ]},... }
         
         """ _create_bandwidth_graph """
-        self.free_bandwidth = {} # {dpid: {port_no: speed, ...}, ...}}
+        self.free_bandwidth = {} # {dpid: {port_no: (free_bandwidth, usage), ...}, ...}} (Mbit/s)
 
         """ _port_desc_stats_reply_handler """
         self.port_features = {}
@@ -58,10 +55,17 @@ class PortStatistic(app_manager.RyuApp):
     # Thread:
     def _monitor_thread(self):
         while True:            
-            for dp in self.topology_data.datapaths.values():
-                self.port_features.setdefault(dp.id, {})
-                self._request_stats(dp)
-            hub.sleep(MONITOR_INTERVAL)
+            try:
+                for dp in self.topology_data.datapaths.values():
+                    self.port_features.setdefault(dp.id, {})
+                    self._request_stats(dp)
+                    # print(self.free_bandwidth)
+                    self.show_stat()
+                hub.sleep(MONITOR_INTERVAL)
+            except:
+                if self.topology_data is None:
+                    self.topology_api_app = lookup_service_brick(TOPOLOGY_DATA)
+                    self.logger.debug('update topology data')
 
     def _save_bw_graph(self):
         """
@@ -111,11 +115,11 @@ class PortStatistic(app_manager.RyuApp):
             capacity = port_state[2]
             curr_bw = self._get_free_bw(capacity, speed)
             self.free_bandwidth[dpid].setdefault(port_no, None)
-            self.free_bandwidth[dpid][port_no] = curr_bw
+            self.free_bandwidth[dpid][port_no] = (curr_bw, speed * 8) # Save as Mbit/s
         else:
             self.logger.info("Fail in getting port state")
             
-    def _create_bandwidth_graph(self, bw_dict):
+    def _create_bandwidth_graph(self, free_bandwidth):
         """
             Save bandwidth data into networkx graph object.
         """
@@ -125,15 +129,21 @@ class PortStatistic(app_manager.RyuApp):
             for link in link_to_port:
                 (src_dpid, dst_dpid) = link
                 (src_port, dst_port) = link_to_port[link]
-                if src_dpid in bw_dict and dst_dpid in bw_dict:
-                    bw_src = bw_dict[src_dpid][src_port]
-                    bw_dst = bw_dict[dst_dpid][dst_port]
-                    bandwidth = min(bw_src, bw_dst)
+                if src_dpid in free_bandwidth and dst_dpid in free_bandwidth:
+                    src_free_bandwidth, src_link_usage = free_bandwidth[src_dpid][src_port]
+                    dst_free_bandwidth, dst_link_usage = free_bandwidth[dst_dpid][dst_port]
+                    
+                    bandwidth = min(src_free_bandwidth, dst_free_bandwidth)
+                    link_usage = min(src_link_usage, dst_link_usage)
+                
                     # add key:value of bandwidth into graph.
-                    print(bw_src, bw_dst)
-                    graph[src_dpid][dst_dpid]['bandwidth'] = bandwidth
+                    graph[src_dpid][dst_dpid]['free_bandwith'] = bandwidth
+                    graph[src_dpid][dst_dpid]['link_usage'] = link_usage 
+                    # graph[src_dpid][dst_dpid]['link_utilization'] = None
+                    
                 else:
                     graph[src_dpid][dst_dpid]['bandwidth'] = 0
+                    graph[src_dpid][dst_dpid]['link_usage'] = 0
             return graph
         except:
             self.logger.info("Create bw graph exception")
@@ -296,6 +306,11 @@ class PortStatistic(app_manager.RyuApp):
     
     def get_free_bandwidth(self):
         pass
+    
+    def show_stat(self):
+        if True and self.topology_data is not None:
+            # self.logger.info(self.topology_data.graph.edges(data=True))
+            pass
 
 # sudo mn --topo linear,4 --controller=remote,ip=localhost,port=6633 --switch ovsk --link tc,bw=0.1,delay=0ms,loss=10
 # ryu-manager --observe-link --ofp-tcp-listen-port=6633 topology_data.py port_statistic.py

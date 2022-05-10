@@ -46,23 +46,9 @@ class DelayMonitor(app_manager.RyuApp):
         self.sw_module: Switches = lookup_service_brick('switches')
         self.topology_data: TopologyData = lookup_service_brick('topology_data')
 
-        self.datapaths = {}
         self.echo_latency = {}
         self.measure_thread = hub.spawn(self._detector)
-
-    @set_ev_cls(ofp_event.EventOFPStateChange,
-                [MAIN_DISPATCHER, DEAD_DISPATCHER])
-    def _state_change_handler(self, ev):
-        datapath = ev.datapath
-        if ev.state == MAIN_DISPATCHER:
-            if not datapath.id in self.datapaths:
-                self.logger.debug('Register datapath: %016x', datapath.id)
-                self.datapaths[datapath.id] = datapath
-        elif ev.state == DEAD_DISPATCHER:
-            if datapath.id in self.datapaths:
-                self.logger.debug('Unregister datapath: %016x', datapath.id)
-                del self.datapaths[datapath.id]
-
+        
     def _detector(self):
         """
             Delay detecting functon.
@@ -78,22 +64,26 @@ class DelayMonitor(app_manager.RyuApp):
         """
             Seng echo request msg to datapath.
         """
-        for datapath in self.datapaths.values():
-            parser = datapath.ofproto_parser
-            
-            data_time = "%.12f" % time.time()
-            byte_arr = bytearray(data_time.encode())
+        try:
+            for datapath in self.topology_data.datapaths.values():
+                parser = datapath.ofproto_parser
 
-            echo_req = parser.OFPEchoRequest(datapath,
-                                             data=byte_arr)
-            datapath.send_msg(echo_req)
-            
-            # Important! Don't send echo request together, Because it will
-            # generate a lot of echo reply almost in the same time.
-            # which will generate a lot of delay of waiting in queue
-            # when processing echo reply in echo_reply_handler.
-            hub.sleep(self.sending_echo_request_interval)
+                data_time = "%.12f" % time.time()
+                byte_arr = bytearray(data_time.encode())
 
+                echo_req = parser.OFPEchoRequest(datapath,
+                                                 data=byte_arr)
+                datapath.send_msg(echo_req)
+
+                # Important! Don't send echo request together, Because it will
+                # generate a lot of echo reply almost in the same time.
+                # which will generate a lot of delay of waiting in queue
+                # when processing echo reply in echo_reply_handler.
+                hub.sleep(self.sending_echo_request_interval)
+        except self.topology_data is None:
+            self.topology_data = lookup_service_brick(TOPOLOGY_DATA)
+            return
+        
     def _get_delay(self, src, dst):
         """
             Get link delay.
@@ -133,7 +123,6 @@ class DelayMonitor(app_manager.RyuApp):
         try:
             for src in self.topology_data.graph:
                 for dst in self.topology_data.graph[src]:
-                    print(src, dst)
                     if src == dst:
                         self.topology_data.graph[src][dst]['delay'] = 0
                         continue

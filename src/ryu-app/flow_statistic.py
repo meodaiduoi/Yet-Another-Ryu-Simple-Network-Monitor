@@ -12,7 +12,7 @@ from ryu.lib.packet import packet
 
 
 from ryu.lib import hub
-from setting import MONITOR_INTERVAL, DISCOVER_INTERVAL, DELAY_MONITOR, TOPOLOGY_DATA
+from setting import FLOW_STATISTIC, MONITOR_INTERVAL, DISCOVER_INTERVAL, DELAY_MONITOR, TOPOLOGY_DATA
 
 from topology_data import TopologyData
 from ryu.app import simple_switch_13
@@ -26,7 +26,7 @@ class FlowStatistic(app_manager.RyuApp):
     def __init__(self, *args, **kwargs):
         super(FlowStatistic, self).__init__(*args, **kwargs)
 
-        self.name = 'LossMeasurement'
+        self.name = FLOW_STATISTIC
 
         self.topology_data: TopologyData = lookup_service_brick(TOPOLOGY_DATA)
         
@@ -48,6 +48,7 @@ class FlowStatistic(app_manager.RyuApp):
         while True:
             hub.sleep(5)
             self._get_link_loss()
+            print(self.topology_data.graph.edges(data=True))
     
     def _request_stats(self, datapath):
         self.logger.debug('send stats request: %016x', datapath.id)
@@ -172,9 +173,11 @@ class FlowStatistic(app_manager.RyuApp):
                 delta_packet = self._cal_delta_stat(flow_stats[-1][0], flow_stats[-2][0], 1) # have to set period to 1 since it is not necessary to have it per sec
                 self._save_stats(self.delta_flow_stats[dpid], key, (delta_packet, speed), 5)
     
-
     def get_flow_stats(self, dpid=None):
+        
         return
     
     def get_delta_flow_stats(self, dpid=None):
         return
+
+#  ryu-manager --observe-link --ofp-tcp-listen-port=6633 topology_data.py flow_statistic.py ryu.app.simple_switch_13

@@ -18,7 +18,7 @@ import json
 from ryu.app.wsgi import WSGIApplication, ControllerBase, Response, route
 
 # External Core
-from simple_swtich_13 import SimpleSwitch13
+# from simple_swtich_13 import SimpleSwitch13
 from delay_monitor import DelayMonitor
 from flow_statistic import FlowStatistic
 from port_statistic import PortStatistic
@@ -29,11 +29,11 @@ class NetworkStat(app_manager.RyuApp):
     # Version - Context
     _CONTEXTS = {
             'wsgi': WSGIApplication,
+            'topology_data': TopologyData,
             'port_statistic': PortStatistic,
             'flow_statistic': FlowStatistic,
             'delay_monitor': DelayMonitor,
-            'simple_switch': SimpleSwitch13,
-            'topology_data': TopologyData,
+            # 'simple_switch': SimpleSwitch13,
             'flow_manager': FlowManager,
         }
 
@@ -45,13 +45,13 @@ class NetworkStat(app_manager.RyuApp):
         wsgi: WSGIApplication = _kwargs['wsgi']
         wsgi.register(NetworkStatRest, {REST_APP: self})
 
-        # External Apps:
-        self.port_statistic: PortStatistic = _kwargs['network_monitor']
+        # External Apps - Load order: alway start the TopologyData first since the other apps depend on it:
+        self.topology_data: TopologyData = _kwargs['topology_data']
+        self.port_statistic: PortStatistic = _kwargs['port_statistic']
         self.flow_statistic: FlowStatistic = _kwargs['flow_statistic']
         self.delay_monitor: DelayMonitor = _kwargs['delay_monitor']
         self.flow_manager: FlowManager = _kwargs['flow_manager']
-        self.topology_data: TopologyData = _kwargs['topology_data']
-        self.simple_switch: SimpleSwitch13 = _kwargs['simple_switch']
+        # self.simple_switch: SimpleSwitch13 = _kwargs['simple_switch']
     
 class NetworkStatRest(ControllerBase):
 
