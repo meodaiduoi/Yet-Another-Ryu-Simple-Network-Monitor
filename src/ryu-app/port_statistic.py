@@ -32,8 +32,8 @@ class PortStatistic(app_manager.RyuApp):
         self.save_freebandwidth_thread = hub.spawn(self._save_bw_graph)
 
         """ _port_stat_reply_handle """
-        self.port_stats = {} # {(dpid, port_no):[(tx_bytes, rx_bytes, rx_errors, duration_sec, duration_nsec),... ]},... }
-        self.delta_port_stats = {} # {(dpid, port_no):[(delta_upload, delta_download, delta_error, period),... ]},... }
+        self.port_stats = {} # {(dpid port_no): [(tx_packets, rx_packets ,tx_bytes, rx_bytes, rx_errors, duration_sec, duration_nsec),...]}
+        self.delta_port_stats = {} # {(dpid, port_no): [(delta_upload, delta_download, delta_error, period),... ]},... }
         
         """ _create_bandwidth_graph """
         self.free_bandwidth = {} # {dpid: {port_no: (free_bandwidth, usage), ...}, ...}} (Mbit/s)
@@ -48,13 +48,11 @@ class PortStatistic(app_manager.RyuApp):
                 for dp in self.topology_data.datapaths.values():
                     self.port_features.setdefault(dp.id, {})
                     self._request_stats(dp)
-                    print('port stat')
-                    print(self.delta_port_stats)
                 hub.sleep(MONITOR_INTERVAL)
             except:
                 if self.topology_data is None:
                     self.topology_api_app = lookup_service_brick(TOPOLOGY_DATA)
-                    self.logger.debug('update topology data')
+                    self.logger.info('update topology data')
 
     def _save_bw_graph(self):
         """
@@ -90,23 +88,22 @@ class PortStatistic(app_manager.RyuApp):
         if period: return (now - pre) / (period)
         else: return
 
-    def _time_coverter(self, sec, nsec):
-        return sec + nsec / (10 ** 9)
-
     def _get_period(self, n_sec, n_nsec, p_sec, p_nsec):
-        return self._time_coverter(n_sec, n_nsec) - self._time_coverter(p_sec, p_nsec)
+        to_sec = lambda sec, nsec: sec + nsec / (10 ** 9)
+        return to_sec(n_sec, n_nsec) - to_sec(p_sec, p_nsec) # to seconds
 
     # Bandwidth graph:
     def _save_freebandwidth(self, dpid, port_no, speed):
         # Calculate free bandwidth of port and save it.
         port_state = self.port_features.get(dpid).get(port_no)
         if port_state:
-            capacity = port_state[2]
-            curr_bw = self._get_free_bw(capacity, speed)
+            capacity = port_state[2] / 10**3 # Kbp/s to MBit/s
+            speed = speed * 8 # Mbit/s !TODO: check this fomular.
+            curr_bw = max(capacity - speed, 0)
             self.free_bandwidth[dpid].setdefault(port_no, None)
-            self.free_bandwidth[dpid][port_no] = (curr_bw, speed * 8) # Save as Mbit/s
+            self.free_bandwidth[dpid][port_no] = (curr_bw, speed) # Save as Mbit/s
         else:
-            self.logger.info("Fail in getting port state")
+            self.logger.warning("Fail in getting port state")
             
     def _create_bandwidth_graph(self, free_bandwidth):
         """
@@ -140,20 +137,16 @@ class PortStatistic(app_manager.RyuApp):
                 self.topology_data = lookup_service_brick(TOPOLOGY_DATA)
             return self.topology_data.graph
 
-    def _get_free_bw(self, capacity, speed):
-        # BW:Mbit/s
-        return max(capacity / 10**3 - speed * 8, 0)
-
     @set_ev_cls(ofp_event.EventOFPPortStatsReply, MAIN_DISPATCHER)
     def _port_stats_reply_handler(self, ev):
         """
             Save port's stats info
             Calculate port's speed and save it.
 
-            port_stats: {dpid: {port_no:[[packet_count, byte_count, duration_sec, duration_nsec]]}}
+            port_stats: {(dpid port_no): [(tx_packets, rx_packets ,tx_bytes, rx_bytes, rx_errors, duration_sec, duration_nsec),...]}
             [history][stat_type]
-            value is a tuple (tx_bytes, rx_bytes, rx_errors, duration_sec, duration_nsec)
-                                0          1          2           3           4
+            value is a tuple (tx_packets, rx_packets ,tx_bytes, rx_bytes, rx_errors, duration_sec, duration_nsec)
+                                  0          1           2         3          4           5             6         
         """
         body = ev.msg.body
         dpid = ev.msg.datapath.id
@@ -166,8 +159,8 @@ class PortStatistic(app_manager.RyuApp):
             if port_no != ofproto_v1_3.OFPP_LOCAL:
 
                 key = (dpid, port_no)
-                value = (stat.rx_packets, stat.tx_bytes, stat.rx_bytes, stat.rx_errors,
-                         stat.duration_sec, stat.duration_nsec)
+                value = (stat.tx_packets, stat.rx_packets, stat.tx_bytes, stat.rx_bytes,
+                         stat.rx_errors, stat.duration_sec, stat.duration_nsec)
 
                 # Monitoring current port.
                 self._save_stats(self.port_stats, key, value, 5)
@@ -175,20 +168,20 @@ class PortStatistic(app_manager.RyuApp):
                 port_stats = self.port_stats[key]
 
                 if len(port_stats) == 1:
-                    self._save_stats(self.delta_port_stats, key, (stat.tx_bytes, stat.rx_bytes, stat.rx_errors, MONITOR_INTERVAL), 5)
+                    self._save_stats(self.delta_port_stats, key, (stat.rx_packets, stat.tx_bytes, stat.rx_bytes, stat.rx_errors, stat.duration_sec, MONITOR_INTERVAL), 5)
                 
                 if len(port_stats) > 1:
-                    curr_stat = port_stats[-1][0] + port_stats[-1][1]
-                    prev_stat = port_stats[-2][0] + port_stats[-2][1]
+                    curr_stat = port_stats[-1][2] + port_stats[-1][3]
+                    prev_stat = port_stats[-2][2] + port_stats[-2][3]
 
-                    period = self._get_period(port_stats[-1][3], port_stats[-1][4],
-                                              port_stats[-2][3], port_stats[-2][4])
+                    period = self._get_period(port_stats[-1][5], port_stats[-1][6],
+                                              port_stats[-2][5], port_stats[-2][6])
 
                     speed = self._cal_delta_stat(curr_stat, prev_stat, period)
 
-                    delta_upload = self._cal_delta_stat(port_stats[-1][0], port_stats[-2][0], 1)
-                    delta_download = self._cal_delta_stat(port_stats[-1][1], port_stats[-2][1], 1)
-                    delta_error = self._cal_delta_stat(port_stats[-1][2], port_stats[-2][2], 1)
+                    delta_upload = self._cal_delta_stat(port_stats[-1][2], port_stats[-2][2], 1)
+                    delta_download = self._cal_delta_stat(port_stats[-1][3], port_stats[-2][3], 1)
+                    delta_error = self._cal_delta_stat(port_stats[-1][4], port_stats[-2][4], 1)
                     self._save_stats(self.delta_port_stats, key, (delta_upload, delta_download, delta_error, period), 5) # delta port stats
 
                     # save free bandwidth (link capacity, can be used for load balancing, calculate link utilization) - Not work in mininet (reason: no link bandwidth)
@@ -269,13 +262,15 @@ class PortStatistic(app_manager.RyuApp):
         stats = []
         port_stats = self.port_stats
         for dpid, port_no in port_stats:
-            packet_count, byte_count, rx_error, duration_sec, duration_nsec = port_stats[(dpid, port_no)][-1]
+            tx_packtes, rx_packets, tx_bytes, rx_bytes, rx_errors, duration_sec, duration_nsec = port_stats[(dpid, port_no)][-1]
             stats.append({
                 'dpid': dpid,
                 'port_no': port_no,
-                'packet_count': packet_count,
-                'byte_count': byte_count,
-                'rx_error': rx_error,
+                'tx_packets': tx_packtes,
+                'rx_packets': rx_packets,
+                'tx_bytes': tx_bytes,
+                'rx_bytes': rx_bytes,
+                'rx_error': rx_errors,
                 'durration_sec': duration_sec,
                 'duration_nsec': duration_nsec
             })
@@ -285,14 +280,14 @@ class PortStatistic(app_manager.RyuApp):
         stats = []
         delta_port_stats = self.delta_port_stats
         for dpid, port_no in delta_port_stats:
-            delta_upload, delta_download, delta_rx_error, duration_period = delta_port_stats[(dpid, port_no)][-1]
+            delta_upload, delta_download, delta_error, period = delta_port_stats[(dpid, port_no)][-1]
             stats.append({
                 'dpid': dpid,
                 'port_no': port_no,
                 'tx_byte': delta_upload,
                 'rx_byte': delta_download,
-                'rx_error': delta_rx_error,
-                'period': duration_period # second
+                'rx_error': delta_error,
+                'period': period # second
             })
         return stats
     
