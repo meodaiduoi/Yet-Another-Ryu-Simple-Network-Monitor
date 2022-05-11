@@ -1,23 +1,19 @@
 # Base
+from ast import operator
 from ryu.base import app_manager
 from ryu.base.app_manager import lookup_service_brick
 from ryu.ofproto import ofproto_v1_3
 
 
 from ryu.controller import ofp_event
-from ryu.controller.handler import set_ev_cls, MAIN_DISPATCHER, DEAD_DISPATCHER
-from ryu.ofproto.ofproto_parser import MsgBase
-
-from ryu.lib.packet import packet
-
+from ryu.controller.handler import set_ev_cls, MAIN_DISPATCHER
 
 from ryu.lib import hub
-from setting import FLOW_STATISTIC, MONITOR_INTERVAL, DISCOVER_INTERVAL, DELAY_MONITOR, TOPOLOGY_DATA
+from setting import FLOW_STATISTIC, STATS_REQUEST_INTERVAL, TOPOLOGY_DATA
 
 from topology_data import TopologyData
-from ryu.app import simple_switch_13
 
-from operator import attrgetter
+import operator
 
 class FlowStatistic(app_manager.RyuApp):
 
@@ -42,11 +38,11 @@ class FlowStatistic(app_manager.RyuApp):
         while True:
             for dp in self.topology_data.datapaths.values():
                 self._request_stats(dp)
-            hub.sleep(MONITOR_INTERVAL)
+            hub.sleep(STATS_REQUEST_INTERVAL)
     
     def _packet_loss_monitor_thread(self):
         while True:
-            hub.sleep(5)
+            hub.sleep(4)
             self._get_link_loss()
     
     def _request_stats(self, datapath):
@@ -132,7 +128,7 @@ class FlowStatistic(app_manager.RyuApp):
             Save flow stats reply info into self.flow_stats.
             Calculate flow speed and Save it.
 
-            flow_stats: {(dpid, eth_dst, flow_id):[(packet_count, byte_count, duration_sec, duration_nsec)]}
+            flow_stats: {dpid: { (in_port[(packet_count, byte_count, duration_sec, duration_nsec)]}
             [history][stat_type]
             As: (stat.packet_count, stat.byte_count, stat.duration_sec, stat.duration_nsec)
                         0                 1                 2                 3
@@ -149,32 +145,64 @@ class FlowStatistic(app_manager.RyuApp):
             key = (stat.match['in_port'], stat.instructions[0].actions[0].port,
                    stat.match.get('eth_src'), stat.match.get('eth_dst'))
 
-            value = (stat.packet_count, stat.byte_count, stat.duration_sec,
-                     stat.duration_nsec)
+            value = (stat.packet_count, stat.byte_count,
+                     stat.duration_sec, stat.duration_nsec)
 
             # Monitoring current flow.
             self._save_stats(self.flow_stats[dpid], key, value, 5)
-
-            period = MONITOR_INTERVAL # default: Monitor interval if no data
             flow_stats = self.flow_stats[dpid][key]
 
             if len(flow_stats) == 1:
-                packet_count, byte_count, _, _ = value 
-                self._save_stats(self.delta_flow_stats[dpid], key, (packet_count/period, byte_count/period), 5)
+                self._save_stats(self.delta_flow_stats[dpid], key, (stat.packet_count, stat.byte_count, stat.duration_sec, stat.duration_nsec), 5)
 
             if len(flow_stats) > 1:
+                # for future use
                 period = self._get_period(flow_stats[-1][2], flow_stats[-1][3],
                                           flow_stats[-2][2], flow_stats[-2][3])
-                # Get flow's speed.
-                speed = self._cal_delta_stat(flow_stats[-1][1], flow_stats[-2][1], period)
-                delta_packet = self._cal_delta_stat(flow_stats[-1][0], flow_stats[-2][0], 1) # have to set period to 1 since it is not necessary to have it per sec
-                self._save_stats(self.delta_flow_stats[dpid], key, (delta_packet, speed), 5)
+        
+                # Get delta flow stat
+                self._save_stats(self.delta_flow_stats[dpid], key, tuple(map(operator.sub, flow_stats[-1], flow_stats[-2])), 5)
     
     def get_flow_stats(self, dpid=None):
-        
-        return
+        if self.flow_stats is None: return None
+        stat = []
+        flow_stats = self.flow_stats
+        for dpid in flow_stats:
+            for flow_name in flow_stats[dpid]:
+                in_port, out_port, eth_src, eth_dst = flow_name
+                packet_count, byte_count, duration_sec, duration_nsec = flow_stats[dpid][flow_name][-1]
+                stat.append({
+                    'dpid': dpid,
+                    'in_port': in_port,
+                    'out_port': out_port,
+                    'eth_src': eth_src,
+                    'eth_dst': eth_dst,
+                    'packet_count': packet_count,
+                    'byte_count': byte_count,
+                    'duration_sec': duration_sec,
+                    'duration_nsec': duration_nsec,
+                })
+        return stat
     
     def get_delta_flow_stats(self, dpid=None):
-        return
+        if self.delta_flow_stats is None: return None
+        stat = []
+        delta_flow_stat = self.delta_flow_stats
+        for dpid in delta_flow_stat:
+            for flow_name in delta_flow_stat[dpid]:
+                in_port, out_port, eth_src, eth_dst = flow_name
+                packet_count, byte_count, duration_sec, duration_nsec = self.delta_flow_stats[dpid][flow_name][-1]
+                stat.append({
+                    'dpid': dpid,
+                    'in_port': in_port,
+                    'out_port': out_port,
+                    'eth_src': eth_src,
+                    'eth_dst': eth_dst,
+                    'packet_count': packet_count,
+                    'byte_count': byte_count,
+                    'duration_sec': duration_sec,
+                    'duration_nsec': duration_nsec,
+                })
+        return stat
 
 #  ryu-manager --observe-link --ofp-tcp-listen-port=6633 topology_data.py flow_statistic.py ryu.app.simple_switch_13

@@ -1,7 +1,7 @@
 # Base
 from ryu.base import app_manager
 from ryu.base.app_manager import lookup_service_brick
-from setting import GRAPH_UPDATE_INTERVAL, MONITOR_INTERVAL, PORT_STATISTIC, TOPOLOGY_DATA
+from setting import GRAPH_UPDATE_INTERVAL, STATS_REQUEST_INTERVAL, PORT_STATISTIC, TOPOLOGY_DATA
 
 # Ofp
 from ryu.controller import ofp_event
@@ -12,6 +12,7 @@ from ryu.lib import hub
 from ryu.ofproto import ofproto_v1_3
 
 # Extra
+import operator
 from operator import attrgetter
 
 # External:
@@ -48,7 +49,7 @@ class PortStatistic(app_manager.RyuApp):
                 for dp in self.topology_data.datapaths.values():
                     self.port_features.setdefault(dp.id, {})
                     self._request_stats(dp)
-                hub.sleep(MONITOR_INTERVAL)
+                hub.sleep(STATS_REQUEST_INTERVAL)
             except:
                 if self.topology_data is None:
                     self.topology_api_app = lookup_service_brick(TOPOLOGY_DATA)
@@ -97,8 +98,8 @@ class PortStatistic(app_manager.RyuApp):
         # Calculate free bandwidth of port and save it.
         port_state = self.port_features.get(dpid).get(port_no)
         if port_state:
-            capacity = port_state[2] / 10**3 # Kbp/s to MBit/s
-            speed = speed * 8 # Mbit/s !TODO: check this fomular.
+            capacity = port_state[2] / (10**3)  # Kbp/s to MBit/s
+            speed = float(speed * 8) / (10**6) # byte/s to Mbit/s
             curr_bw = max(capacity - speed, 0)
             self.free_bandwidth[dpid].setdefault(port_no, None)
             self.free_bandwidth[dpid][port_no] = (curr_bw, speed) # Save as Mbit/s
@@ -168,7 +169,7 @@ class PortStatistic(app_manager.RyuApp):
                 port_stats = self.port_stats[key]
 
                 if len(port_stats) == 1:
-                    self._save_stats(self.delta_port_stats, key, (stat.rx_packets, stat.tx_bytes, stat.rx_bytes, stat.rx_errors, stat.duration_sec, MONITOR_INTERVAL), 5)
+                    self._save_stats(self.delta_port_stats, key, (stat.tx_packets, stat.rx_packets, stat.tx_bytes, stat.rx_bytes, stat.rx_errors, stat.duration_sec, STATS_REQUEST_INTERVAL), 5)
                 
                 if len(port_stats) > 1:
                     curr_stat = port_stats[-1][2] + port_stats[-1][3]
@@ -178,11 +179,9 @@ class PortStatistic(app_manager.RyuApp):
                                               port_stats[-2][5], port_stats[-2][6])
 
                     speed = self._cal_delta_stat(curr_stat, prev_stat, period)
-
-                    delta_upload = self._cal_delta_stat(port_stats[-1][2], port_stats[-2][2], 1)
-                    delta_download = self._cal_delta_stat(port_stats[-1][3], port_stats[-2][3], 1)
-                    delta_error = self._cal_delta_stat(port_stats[-1][4], port_stats[-2][4], 1)
-                    self._save_stats(self.delta_port_stats, key, (delta_upload, delta_download, delta_error, period), 5) # delta port stats
+                    
+                    # Using maping to save detal_port_stats.
+                    self._save_stats(self.delta_port_stats, key, tuple(map(operator.sub, port_stats[-1], port_stats[-2])), 5)
 
                     # save free bandwidth (link capacity, can be used for load balancing, calculate link utilization) - Not work in mininet (reason: no link bandwidth)
                     self._save_freebandwidth(dpid, port_no, speed)
@@ -253,12 +252,12 @@ class PortStatistic(app_manager.RyuApp):
         else:
             print("switch%d: Illeagal port state %s %s" % (port_no, reason))
 
-
     """
         Accessor:
         return info as dict
     """
     def get_port_stats(self):
+        if self.port_stats is None: return None
         stats = []
         port_stats = self.port_stats
         for dpid, port_no in port_stats:
@@ -277,17 +276,21 @@ class PortStatistic(app_manager.RyuApp):
         return stats    
 
     def get_delta_port_stats(self):
+        if self.delta_port_stats is None: return None
         stats = []
         delta_port_stats = self.delta_port_stats
         for dpid, port_no in delta_port_stats:
-            delta_upload, delta_download, delta_error, period = delta_port_stats[(dpid, port_no)][-1]
+            tx_packtes, rx_packets, tx_bytes, rx_bytes, rx_errors, duration_sec, duration_nsec = delta_port_stats[(dpid, port_no)][-1]
             stats.append({
                 'dpid': dpid,
                 'port_no': port_no,
-                'tx_byte': delta_upload,
-                'rx_byte': delta_download,
-                'rx_error': delta_error,
-                'period': period # second
+                'tx_packets': tx_packtes,
+                'rx_packets': rx_packets,
+                'tx_bytes': tx_bytes,
+                'rx_bytes': rx_bytes,
+                'rx_error': rx_errors,
+                'durration_sec': duration_sec,
+                'duration_nsec': duration_nsec
             })
         return stats
     

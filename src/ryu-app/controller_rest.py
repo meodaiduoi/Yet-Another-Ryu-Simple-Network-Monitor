@@ -188,15 +188,15 @@ class NetworkStatRest(ControllerBase):
         body = json.dumps(self.app.port_statistic.get_delta_port_stats())
         return Response(content_type='application/json', body=body)
 
-    # @route(REST_APP, '/flow_stat', methods=['GET'])
-    # def get_flow_stat(self, req, **kwargs):
-    #     body = json.dumps(self.)
-    #     return Response(content_type='application/json', body=body)
+    @route(REST_APP, '/flow_stat', methods=['GET'])
+    def get_flow_stat(self, req, **kwargs):
+        body = json.dumps(self.app.flow_statistic.get_flow_stats())
+        return Response(content_type='application/json', body=body)
 
-    # @route(REST_APP, '/delta_flow_stat', methods=['GET'])
-    # def get_delta_flow_stat(self, req, **kwargs):
-
-    #     return Response(content_type='application/json', body=body)
+    @route(REST_APP, '/delta_flow_stat', methods=['GET'])
+    def get_delta_flow_stat(self, req, **kwargs):
+        body = json.dumps(self.app.flow_statistic.get_delta_flow_stats())
+        return Response(content_type='application/json', body=body)
 
     # @route(REST_APP, '/port_desc', methods=['GET'])
     # def get_port_desc(self, req, **kwargs):
