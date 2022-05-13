@@ -22,7 +22,6 @@ from ryu.app.wsgi import WSGIApplication, ControllerBase, Response, route
 from delay_monitor import DelayMonitor
 from flow_statistic import FlowStatistic
 from port_statistic import PortStatistic
-from flow_manager import FlowManager
 from topology_data import TopologyData
 
 # logging
@@ -36,7 +35,7 @@ class NetworkStat(app_manager.RyuApp):
             'flow_statistic': FlowStatistic,
             'delay_monitor': DelayMonitor,
             # 'simple_switch': SimpleSwitch13,
-            'flow_manager': FlowManager,
+            # 'flow_manager': FlowManager,
         }
 
     def __init__(self, *_args, **_kwargs):
@@ -52,8 +51,6 @@ class NetworkStat(app_manager.RyuApp):
         self.port_statistic: PortStatistic = _kwargs['port_statistic']
         self.flow_statistic: FlowStatistic = _kwargs['flow_statistic']
         self.delay_monitor: DelayMonitor = _kwargs['delay_monitor']
-        self.flow_manager: FlowManager = _kwargs['flow_manager']
-        # self.simple_switch: SimpleSwitch13 = _kwargs['simple_switch']
     
 class NetworkStatRest(ControllerBase):
 
@@ -82,70 +79,6 @@ class NetworkStatRest(ControllerBase):
     #     # return (Response(content_type='application/json', body=json.dumps(content), status=200))
     #     print(type(content))      
     #     return (Response(content_type='application', body=json.dumps(content), status=200))
-
-    # flow get
-    @route(REST_APP, '/flow_get/{dpid}', methods=['GET'])
-    def flow_get(self, req, **_kwargs):
-        try:
-            dpid = int(_kwargs['dpid'])
-        except ValueError:
-            body = json.dump([{'status': 'value error'}])
-            return Response(content_type='application/json', body=body, status=400)
-        else:
-            pass
-    
-    @route(REST_APP, '/flow_get_all', methods=['GET'])
-    def flow_get_all(self, req, **_kwargs):
-        body = json.dumps([{'status': 'ok'}])
-        return (Response(content_type='application/json', body=body, status=200))
-    
-    @route(REST_APP, '/add_flow', methods=['PUT'])
-    def add_flow(self, req, **_kwargs):
-        try:
-            content = req.json if req.body else {}
-
-            dpid = int(content['dpid'])
-            cookie = int(content['cookie'])
-            cookie_mask = int(content['cookie_mask'])
-            table_id = int(content['table_id'])
-            idle_timeout = int(content['idle_timeout'])
-            hard_timeout = int(content['hard_timeout'])
-            priority = int(content['priority'])
-            flags = int(content['flags'])
-            match = content['match']
-            actions = content['actions']
-        
-        except ValueError:
-            body = json.dumps([{'status': 'value error'}])
-            return Response(content_type='application/json', body=body, status=400)
-        
-        else:
-            # Not Yet fully implement - Do not use
-            # self.app.flow_manager.flow_add(dpid, cookie=cookie, cookie_mask=cookie_mask,
-            #                                table_id=table_id, idle_timeout=idle_timeout,
-            #                                hard_timeout=hard_timeout, priority=priority,
-            #                                in_port=in_port, eth_dst=eth_dst)
-            body = json.dumps([{'status': 'ok'}])
-            return Response(content_type='application/json', body=body, status=200)
-            
-            
-    @route(REST_APP, '/del_flow/{dpid}', methods=['PUT'])
-    def del_flow(self, req, **_kwargs):
-        dpid = _kwargs['dpid']
-        try:
-            dpid = int(dpid)
-        except ValueError:
-            body = json.dumps([{'status': 'value error'}])
-            return Response(content_type='application/json', body=body, status=400)
-        else:
-            self.app.flow_manager.flow_del(dpid)
-            return Response(content_type='application/json', body=json.dumps({'status': 'ok'}), status=200)
-
-    @route(REST_APP, '/clear_all_flow', methods=['GET'])
-    def clean_flow(self, req, **_kwargs):
-        self.app.flow_clear_all()
-        body = json.dumps([{'status': 'ok'}])
-        return (Response(content_type='application/json', body=body, status=200))
 
     # network info
     @route(REST_APP, '/topology_data', methods=['GET'])

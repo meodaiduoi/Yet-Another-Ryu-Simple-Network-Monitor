@@ -1,0 +1,133 @@
+curl -X POST -d '{
+    "dpid": 1,
+    "cookie": 0,
+    "table_id": 0,
+    "priority": 0,
+    "flags": 1,
+    "match":{},
+    "actions":[
+        {
+            "type":"OUTPUT",
+            "port": "CONTROLLER"
+        }
+    ]
+ }' http://localhost:8080/stats/flowentry/add
+
+
+  curl -X POST -d '{
+    "dpid": 1,
+    "cookie": 0,
+    "table_id": 0,
+    "priority": 1,
+    "flags": 1,
+    "match":{
+        "in_port":2,
+                "dl_dst":"00:00:00:00:00:01"
+    },
+    "actions":[
+        {
+            "type":"OUTPUT",
+            "port": 1
+        }
+    ]
+ }' http://localhost:8080/stats/flowentry/add
+
+
+curl -X POST -d '{
+    "dpid": 1,
+    "cookie": 0,
+    "table_id": 0,
+    "priority": 1,
+    "flags": 1,
+    "match":{
+        "in_port":1,
+                "dl_dst":"00:00:00:00:00:02"
+    },
+    "actions":[
+        {
+            "type":"OUTPUT",
+            "port": 2
+        }
+    ]
+ }' http://localhost:8080/stats/flowentry/add
+
+
+curl -X POST -d '{
+    "dpid": 1,
+    "cookie": 0,
+    "table_id": 0,
+    "priority": 1,
+    "flags": 1,
+    "match":{
+        "in_port":3,
+                "dl_dst":"00:00:00:00:00:01"
+    },
+    "actions":[
+        {
+            "type":"OUTPUT",
+            "port": 1
+        }
+    ]
+ }' http://localhost:8080/stats/flowentry/add
+
+
+curl -X POST -d '{
+    "dpid": 1,
+    "cookie": 0,
+    "table_id": 0,
+    "priority": 1,
+    "flags": 1,
+    "match":{
+        "in_port":1,
+                "dl_dst":"00:00:00:00:00:03"
+    },
+    "actions":[
+        {
+            "type":"OUTPUT",
+            "port": 3
+        }
+    ]
+ }' http://localhost:8080/stats/flowentry/add
+
+
+
+ curl -X POST -d '{
+    "dpid": 1,
+    "cookie": 0,
+    "table_id": 0,
+    "priority": 1,
+    "flags": 1,
+    "match":{
+        "in_port":3,
+                "dl_dst":"00:00:00:00:00:02"
+    },
+    "actions":[
+        {
+            "type":"OUTPUT",
+            "port": 2
+        }
+    ]
+ }' http://localhost:8080/stats/flowentry/add
+
+
+ curl -X POST -d '{
+    "dpid": 1,
+    "cookie": 0,
+    "table_id": 0,
+    "priority": 1,
+    "flags": 1,
+    "match":{
+        "in_port":2,
+                "dl_dst":"00:00:00:00:00:03"
+    },
+    "actions":[
+        {
+            "type":"OUTPUT",
+            "port": 3
+        }
+    ]
+ }' http://localhost:8080/stats/flowentry/add
+
+https://stackoverflow.com/questions/45185910/adding-an-ip-based-flow-entry-using-ryu-rest-api
+https://ryu-takahashi.readthedocs.io/en/latest/app/ofctl_rest.html
+https://ryu.readthedocs.io/en/latest/app/ofctl_rest.html#add-a-flow-entry
