@@ -147,4 +147,4 @@ class NetworkStatRest(ControllerBase):
         body = json.dumps(link_quality)
         return Response(content_type='application/json', body=body, status=200)
         
-# ryu-manager --observe-link --ofp-tcp-listen-port=6633 --wsapi-port=8080 NetworkStatRest.py
+# ryu-manager --observe-link --ofp-tcp-listen-port=6633 --wsapi-port=8080 controller_rest.py
