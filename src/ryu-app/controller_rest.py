@@ -110,6 +110,21 @@ class NetworkStatRest(ControllerBase):
         body = json.dumps({'switch': switches})
         return Response(content_type='application/json', body=body, status=200)
 
+    @route(REST_APP, '/link_to_port', methods=['GET'])
+    def get_link_to_port(self, req):
+        '''
+        Get link_to_port data with json format:
+        {src_dpid: {dst_dpid: [src_port, dst_port]}, ...}
+        '''
+        data = self.app.topology_data.link_to_port
+        reformated_result = {}
+        for key in data.keys():
+            if key[0] not in reformated_result.keys():
+                reformated_result[key[0]] = {key[1]: list(data[key])}
+            reformated_result[key[0]][key[1]] = list(data[key])
+        body = json.dumps(reformated_result)
+        return Response(content_type='application/json', body=body, status=200)
+
     # network monitor
     @route(REST_APP, '/port_stat', methods=['GET'])
     def get_port_stat(self, req, **kwargs):
@@ -146,5 +161,16 @@ class NetworkStatRest(ControllerBase):
         link_quality = self.app.topology_data.get_link_quality()
         body = json.dumps(link_quality)
         return Response(content_type='application/json', body=body, status=200)
-        
+    
+    @route(REST_APP, '/topology_graph', methods=['GET'])
+    def get_topology_graph(self, req, **kwargs):
+        """_summary_
+        Get topology graph data
+        Returns:
+            _type_: json string response
+        """
+        graph = self.app.topology_data.get_topology_graph()
+        body = json.dumps(graph)
+        return Response(content_type='application/json', body=body, status=200)
+
 # ryu-manager --observe-link --ofp-tcp-listen-port=6633 --wsapi-port=8080 controller_rest.py

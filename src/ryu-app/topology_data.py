@@ -197,3 +197,11 @@ class TopologyData(app_manager.RyuApp):
                     'free_bandwidth': free_bandwith
                 })
         return link_quality
+    
+    def get_topology_graph(self):
+        """
+            Dump json topology 
+        """
+        return nx.json_graph.node_link_data(self.graph)
+
+    
