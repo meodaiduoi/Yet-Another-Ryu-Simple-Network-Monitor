@@ -1,6 +1,5 @@
 https://github.com/wildan2711/delay_monitor_sdn/blob/master/delay_monitor.py
 https://github.com/FlowForwarding/LINC-Switch/blob/master/scripts/ryu/remove_flows_v1_3.py
-
 https://osrg.github.io/ryu-book/en/html/rest_api.html
 
 http://www.muzixing.com/tag/ryu-bandwidth.html

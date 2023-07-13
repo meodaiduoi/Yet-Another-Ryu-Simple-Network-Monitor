@@ -23,8 +23,8 @@ grafanas: http://localhost:3000/
 tutorial link: http://installfights.blogspot.com/2016/10/mininet-ryu-faucet-gauge-influxdb.html
 First, run ryu-manager with faucet app:
 ryu-manager --ofp-tcp-listen-port=6633 faucet.faucet ryu.app.simple_switch_13 ryu.app.ofctl_rest
-ryu-manager --ofp-tcp-listen-port=6633 --wsapi-port=8081 ryu.app.simple_switch_13 ryu.app.ofctl_rest
-ryu-manager --ofp-tcp-listen-port=6633 --wsapi-port=8081 ryu.app.ofctl_rest
+ryu-manager --ofp-tcp-listen-port=6633 --wsapi-port=8080 ryu.app.simple_switch_13 ryu.app.ofctl_rest
+ryu-manager --ofp-tcp-listen-port=6633 --wsapi-port=8080 ryu.app.ofctl_rest
 
 To run gauge as a second controller, with a different port, you must run the following code:
 ryu-manager --verbose --ofp-tcp-listen-port=6663 faucet.gauge
