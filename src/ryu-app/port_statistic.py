@@ -124,7 +124,7 @@ class PortStatistic(app_manager.RyuApp):
                     link_usage = min(src_link_usage, dst_link_usage)
                 
                     # add key:value of bandwidth into graph.
-                    graph[src_dpid][dst_dpid]['free_bandwith'] = bandwidth
+                    graph[src_dpid][dst_dpid]['free_bandwidth'] = bandwidth
                     graph[src_dpid][dst_dpid]['link_usage'] = link_usage 
                     # graph[src_dpid][dst_dpid]['link_utilization'] = None
                     

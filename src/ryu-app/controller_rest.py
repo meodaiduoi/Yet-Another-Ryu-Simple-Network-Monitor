@@ -34,8 +34,6 @@ class NetworkStat(app_manager.RyuApp):
             'port_statistic': PortStatistic,
             'flow_statistic': FlowStatistic,
             'delay_monitor': DelayMonitor,
-            # 'simple_switch': SimpleSwitch13,
-            # 'flow_manager': FlowManager,
         }
 
     def __init__(self, *_args, **_kwargs):
@@ -94,19 +92,19 @@ class NetworkStatRest(ControllerBase):
 
     @route(REST_APP, '/hosts', methods=['GET'])
     def get_hosts(self, req):
-        hosts, _, _ = self.app.topology_data.get_topology_data()
+        hosts = self.app.topology_data.get_host()
         body = json.dumps({'hosts': hosts})
         return Response(content_type='application/json', body=body, status=200)
         
     @route(REST_APP, '/links', methods=['GET'])
     def get_links(self, req):
-        _, _, links = self.app.topology_data.get_topology_data()
+        links = self.app.topology_data.get_link()
         body = json.dumps({'link': links})
         return Response(content_type='application/json', body=body, status=200)
 
     @route(REST_APP, '/switches', methods=['GET'])
     def get_switches(self, req):
-        _, switches, _ = self.app.topology_data.get_topology_data()
+        switches, _ = self.app.topology_data.get_switch()
         body = json.dumps({'switch': switches})
         return Response(content_type='application/json', body=body, status=200)
 

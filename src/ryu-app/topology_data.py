@@ -156,14 +156,28 @@ class TopologyData(app_manager.RyuApp):
             A dict of topology data
             _type_: dict
         """
-        hosts: list[Host] = get_host(self, None)
+        hosts: list[Host] = get_host(self, None)        
         switches: list[Switch] = get_switch(self, None)
         links: list[Link] = get_link(self, None)
 
+        # hosts_dict = [host.to_dict() for host in hosts]
         hosts_dict = [host.to_dict() for host in hosts]
         switches_dict = [switch.to_dict() for switch in switches]
         links_dict = [link.to_dict() for link in links]
         return hosts_dict, switches_dict, links_dict
+    
+    def get_host(self):
+        hosts: list[Host] = get_host(self, None)
+        return [host.to_dict() for host in hosts]
+        
+    def get_switch(self):
+        switches: list[Switch] = get_switch(self, None)
+        return [switch.to_dict() for switch in switches]
+        
+    
+    def get_link(self):
+        links: list[Link] = get_link(self, None)
+        return [link.to_dict() for link in links]
     
     def get_link_quality(self):
         """_summary_
