@@ -104,7 +104,7 @@ class NetworkStatRest(ControllerBase):
 
     @route(REST_APP, '/switches', methods=['GET'])
     def get_switches(self, req):
-        switches, _ = self.app.topology_data.get_switch()
+        switches = self.app.topology_data.get_switch()
         body = json.dumps({'switch': switches})
         return Response(content_type='application/json', body=body, status=200)
 

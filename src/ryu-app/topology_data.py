@@ -156,26 +156,36 @@ class TopologyData(app_manager.RyuApp):
             A dict of topology data
             _type_: dict
         """
-        hosts: list[Host] = get_host(self, None)        
-        switches: list[Switch] = get_switch(self, None)
-        links: list[Link] = get_link(self, None)
-
-        # hosts_dict = [host.to_dict() for host in hosts]
-        hosts_dict = [host.to_dict() for host in hosts]
-        switches_dict = [switch.to_dict() for switch in switches]
-        links_dict = [link.to_dict() for link in links]
-        return hosts_dict, switches_dict, links_dict
+        return self.get_host(), self.get_switch(), self.get_link()
     
     def get_host(self):
+        """
+            Return host data for the REST API
+        Returns:
+            An array of dict about hosts data
+        """
         hosts: list[Host] = get_host(self, None)
-        return [host.to_dict() for host in hosts]
+        hosts_dict = [host.to_dict() for host in hosts]
+        # Remove hosts without ipv4 address / Zombie hosts
+        return [host for host in hosts_dict if host['ipv4']]
+
         
     def get_switch(self):
+        '''
+            Return switch data for the REST API
+        Returns:
+            An array of dict about switch data
+        '''
         switches: list[Switch] = get_switch(self, None)
         return [switch.to_dict() for switch in switches]
         
     
     def get_link(self):
+        '''
+            Return array of links dict for the REST API
+        Returns:
+            An array of dict about links data
+        '''
         links: list[Link] = get_link(self, None)
         return [link.to_dict() for link in links]
     
@@ -190,22 +200,14 @@ class TopologyData(app_manager.RyuApp):
             if src != dst:
                 
                 # I wish i understood Lambda function
-                if 'packet_loss' in value: packet_loss = value['packet_loss']
-                else: packet_loss = None 
-                
-                if 'delay' in value: delay = value['delay']
-                else: delay = None
-                
-                if 'link_usage' in value: link_usage = value['link_usage']
-                else: link_usage = None
-                
-                if 'free_bandwith' in value: free_bandwith = value['free_bandwith']
-                else: free_bandwith = None
-                
+                packet_loss = value.get('packet_loss', None)
+                delay = value.get('delay', None) * 1000
+                link_usage = value.get('link_usage', None)
+                free_bandwith = value.get('free_bandwith', None)
                 link_quality.append({
                     'src.dpid': src,
                     'dst.dpid': dst,
-                    'delay': delay * 1000, # ms
+                    'delay': delay,
                     'packet_loss': packet_loss,
                     'link_usage': link_usage,
                     'free_bandwidth': free_bandwith

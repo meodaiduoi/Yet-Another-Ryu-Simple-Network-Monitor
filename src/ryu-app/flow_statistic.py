@@ -9,7 +9,7 @@ from ryu.controller import ofp_event
 from ryu.controller.handler import set_ev_cls, MAIN_DISPATCHER
 
 from ryu.lib import hub
-from setting import FLOW_STATISTIC, STATS_REQUEST_INTERVAL, TOPOLOGY_DATA
+from setting import FLOW_STATISTIC, STATS_REQUEST_INTERVAL, TOPOLOGY_DATA, PROBE_PACKETLOSS_INTERVAL
 
 from topology_data import TopologyData
 
@@ -42,7 +42,7 @@ class FlowStatistic(app_manager.RyuApp):
     
     def _packet_loss_monitor_thread(self):
         while True:
-            hub.sleep(4)
+            hub.sleep(PROBE_PACKETLOSS_INTERVAL)
             self._get_link_loss()
     
     def _request_stats(self, datapath):

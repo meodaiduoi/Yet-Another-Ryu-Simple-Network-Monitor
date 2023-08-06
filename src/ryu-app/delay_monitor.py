@@ -57,7 +57,7 @@ class DelayMonitor(app_manager.RyuApp):
         while True:
             self._send_echo_request()
             self.create_link_delay()
-            self.show_delay_statis()
+            # self.show_delay_statis()
             hub.sleep(DELAY_DETECTING_INTERVAL)
 
     def _send_echo_request(self):
@@ -127,6 +127,9 @@ class DelayMonitor(app_manager.RyuApp):
                         self.topology_data.graph[src][dst]['delay'] = 0
                         continue
                     delay = self._get_delay(src, dst)
+                    # avoid json error by using very big number
+                    if delay == float('inf'):
+                        delay = 9999
                     self.topology_data.graph[src][dst]['delay'] = delay
         except:
             if self.topology_data is None:
@@ -165,21 +168,15 @@ class DelayMonitor(app_manager.RyuApp):
         except LLDPPacket.LLDPUnknownFormat as e:
             return
 
-    def show_delay_statis(self):
-        if False and self.topology_data is not None:
-            self.logger.info("\nsrc   dst      delay")
-            self.logger.info("---------------------------")
-            for src in self.topology_data.graph:
-                for dst in self.topology_data.graph[src]:
-                    if src != dst:
-                        delay = self.topology_data.graph[src][dst]['delay']
-                        self.logger.info("%s<-->%s : %s" % (src, dst, delay))
-                        # self.logger.info(self.topology_data.graph.edges())
+    # def show_delay_statis(self):
+    #     if False and self.topology_data is not None:
+    #         self.logger.info("\nsrc   dst      delay")
+    #         self.logger.info("---------------------------")
+    #         for src in self.topology_data.graph:
+    #             for dst in self.topology_data.graph[src]:
+    #                 if src != dst:
+    #                     delay = self.topology_data.graph[src][dst]['delay']
+    #                     self.logger.info("%s<-->%s : %s" % (src, dst, delay))
+    #                     # self.logger.info(self.topology_data.graph.edges())
             
-    """
-        Accessor get link delay as dict.
-    """        
-    def get_link_delay(self):
-        pass
-    
     
