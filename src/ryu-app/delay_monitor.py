@@ -67,7 +67,8 @@ class DelayMonitor(app_manager.RyuApp):
         try:
             for datapath in self.topology_data.datapaths.values():
                 parser = datapath.ofproto_parser
-
+                
+                # by second unit
                 data_time = "%.12f" % time.time()
                 byte_arr = bytearray(data_time.encode())
 
@@ -127,10 +128,11 @@ class DelayMonitor(app_manager.RyuApp):
                         self.topology_data.graph[src][dst]['delay'] = 0
                         continue
                     delay = self._get_delay(src, dst)
-                    # avoid json error by using very big number
+                    # avoid json error by give it none
                     if delay == float('inf'):
-                        delay = 9999
-                    self.topology_data.graph[src][dst]['delay'] = delay
+                        delay = None
+                    # convert from s to ms unit
+                    self.topology_data.graph[src][dst]['delay'] = delay * 1000
         except:
             if self.topology_data is None:
                 self.topology_data: TopologyData = lookup_service_brick(TOPOLOGY_DATA)

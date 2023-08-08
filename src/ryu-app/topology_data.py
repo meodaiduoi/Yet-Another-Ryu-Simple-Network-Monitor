@@ -201,7 +201,7 @@ class TopologyData(app_manager.RyuApp):
                 
                 # I wish i understood Lambda function
                 packet_loss = value.get('packet_loss', None)
-                delay = value.get('delay', None) * 1000
+                delay = value.get('delay', None)
                 link_usage = value.get('link_usage', None)
                 free_bandwith = value.get('free_bandwith', None)
                 link_quality.append({
