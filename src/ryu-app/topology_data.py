@@ -10,7 +10,7 @@ from ryu.controller.handler import CONFIG_DISPATCHER, MAIN_DISPATCHER, DEAD_DISP
 
 # Topology
 from ryu.controller.controller import Datapath
-from ryu.topology.api import get_link, get_switch, get_host
+from ryu.topology.api import get_link, get_switch, get_host, get_all_switch, get_all_host, get_all_link
 from ryu.topology.switches import Switch, Link, Host, Port
 
 from setting import TOPOLOGY_DATA, DISCOVER_INTERVAL
@@ -158,17 +158,52 @@ class TopologyData(app_manager.RyuApp):
         """
         return self.get_host(), self.get_switch(), self.get_link()
     
+    # Rollback in case something caught fire
+    # def get_host(self):
+    #     """
+    #         Return host data for the REST API
+    #     Returns:
+    #         An array of dict about hosts data
+    #     """
+    #     host_list = get_all_host(self)
+
+    #     # To remove hosts that are not removed by controller
+    #     ports = []
+    #     # NOTE: unify this section later ----
+    #     switches = get_all_switch(self)
+    #     for switch in switches:
+    #         ports += switch.ports
+    #     port_macs = [p.hw_addr for p in ports]
+    #     n_host_list = [h for h in host_list if h.port.hw_addr in port_macs]
+    #     hosts_dict = [h.to_dict() for h in n_host_list]
+    #     # ----
+    #     sw_list = self.get_switch()
+    #     hosts_dict = [h.to_dict() for h in host_list]
+    #     hw_addrs = [port['hw_addr'] for switch in sw_list for port in switch['ports']]
+    #     hosts_dict = [host for host in hosts_dict if host['mac'] not in hw_addrs]
+    #     return hosts_dict
+    
+    # New shinny func
     def get_host(self):
         """
             Return host data for the REST API
         Returns:
             An array of dict about hosts data
         """
-        hosts: list[Host] = get_host(self, None)
-        hosts_dict = [host.to_dict() for host in hosts]
-        # Remove hosts without ipv4 address / Zombie hosts
-        return [host for host in hosts_dict if host['ipv4']]
-
+        host_list = get_all_host(self)
+        hostdict_list = [h.to_dict() for h in host_list]
+        swdict_list = self.get_switch()
+        
+        # To remove hosts that are not removed by controller
+        ports = [port for switch in swdict_list for port in switch['ports']]
+        port_macs  = [p['hw_addr'] for p in ports]
+        hostdict_list = [h for h in hostdict_list if h['port']['hw_addr'] in port_macs]
+        
+        # To remove host that has mac is hw_addr of switch port
+        hw_addrs = [port['hw_addr'] for switch in swdict_list for port in switch['ports']]
+        hostdict_list = [host for host in hostdict_list if host['mac'] not in hw_addrs]
+        return hostdict_list
+            
         
     def get_switch(self):
         '''
@@ -176,7 +211,7 @@ class TopologyData(app_manager.RyuApp):
         Returns:
             An array of dict about switch data
         '''
-        switches: list[Switch] = get_switch(self, None)
+        switches: list[Switch] = get_all_switch(self)
         return [switch.to_dict() for switch in switches]
         
     
@@ -186,7 +221,7 @@ class TopologyData(app_manager.RyuApp):
         Returns:
             An array of dict about links data
         '''
-        links: list[Link] = get_link(self, None)
+        links: list[Link] = get_all_link(self)
         return [link.to_dict() for link in links]
     
     def get_link_quality(self):
