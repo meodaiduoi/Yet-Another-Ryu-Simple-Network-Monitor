@@ -139,6 +139,9 @@ class FlowStatistic(app_manager.RyuApp):
         self.flow_stats.setdefault(dpid, {})
         self.delta_flow_stats.setdefault(dpid, {})
 
+        # for stat in sorted([flow for flow in body if flow.priority > 0 and flow.priority < 65535],
+        #                    key=lambda flow: (flow.match.get('in_port'), flow.match.get('eth_dst'))):
+        
         for stat in sorted([flow for flow in body if flow.priority == 1],
                            key=lambda flow: (flow.match.get('in_port'), flow.match.get('eth_dst'))):
 
