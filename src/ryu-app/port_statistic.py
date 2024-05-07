@@ -120,6 +120,8 @@ class PortStatistic(app_manager.RyuApp):
                     src_free_bandwidth, src_link_usage = free_bandwidth[src_dpid][src_port]
                     dst_free_bandwidth, dst_link_usage = free_bandwidth[dst_dpid][dst_port]
                     
+                    # Get the min bandwidth / speed between scr_dpid(and src_port) compare to
+                    # dst_dpid(and dst_port) 
                     bandwidth = min(src_free_bandwidth, dst_free_bandwidth)
                     link_usage = min(src_link_usage, dst_link_usage)
                 
@@ -173,12 +175,15 @@ class PortStatistic(app_manager.RyuApp):
                     self._save_stats(self.delta_port_stats, key, (stat.tx_packets, stat.rx_packets, stat.tx_bytes, stat.rx_bytes, stat.rx_errors, stat.duration_sec, STATS_REQUEST_INTERVAL), 5)
                 
                 if len(port_stats) > 1:
+                    # tx_bytes + rx_bytes (line : 36)
+                    # newest and second newst of stat
                     curr_stat = port_stats[-1][2] + port_stats[-1][3]
                     prev_stat = port_stats[-2][2] + port_stats[-2][3]
 
                     period = self._get_period(port_stats[-1][5], port_stats[-1][6],
                                               port_stats[-2][5], port_stats[-2][6])
 
+                    # speed is delta stat over a perid bettween prev and curr stat 
                     speed = self._cal_delta_stat(curr_stat, prev_stat, period)
                     
                     # Using maping to save detal_port_stats.
